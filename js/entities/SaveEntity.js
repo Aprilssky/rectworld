@@ -1,5 +1,9 @@
 import { BaseEntity } from './BaseEntity.js';
-import { saveToServer, loadFromServer } from '../saveApi.js';
+import {
+  isOnline, isLoggedIn, getUsername,
+  saveToServer, loadFromServer,
+  saveToLocal, loadFromLocal, hasLocalSave,
+} from '../saveApi.js';
 
 export class SaveEntity extends BaseEntity {
     constructor(i, j, grid) {
@@ -9,72 +13,104 @@ export class SaveEntity extends BaseEntity {
         this.label = '存';
         this.grid = grid;
         this.saveData = null;
-        this.serverAvailable = null;  // unknown until first check
+        this.serverAvailable = null;
     }
 
     async interact(interactor, grid) {
         if (interactor.j < this.j) {
             // Above → save
             await this.doSave();
-        } else if (interactor.j > this.j && this.saveData) {
+        } else if (interactor.j > this.j) {
             // Below → load
             await this.doLoad();
         }
-        // Side: no action
     }
 
     async doSave() {
-        this.serialize();
+        this.saveData = this.grid.serialize();
 
-        // Try server save
-        const result = await saveToServer(this.saveData);
-        if (result.success) {
-            console.log(`☁️ ${result.message}`);
-            this.serverAvailable = true;
-        } else {
-            // Fallback to localStorage
-            localStorage.setItem('rictworld_save', this.saveData);
-            if (result.fallback) {
-                this.serverAvailable = false;
-                console.log('💾 已保存到本地存储 (服务器不可用)');
-            } else {
-                console.warn(result.message);
+        if (isOnline()) {
+            if (!isLoggedIn()) {
+                console.warn('⚠️ 在线模式需要先登录');
+                // Fallback to local
+                saveToLocal(this.saveData);
+                console.log('💾 已保存到本地存储');
+                return;
             }
+            const result = await saveToServer(this.saveData);
+            if (result.success) {
+                console.log(`☁️ ${result.message} (${getUsername()})`);
+                this.serverAvailable = true;
+            } else {
+                // Fallback to local
+                saveToLocal(this.saveData);
+                this.serverAvailable = false;
+                console.warn(`⚠️ 服务器保存失败: ${result.error || '未知错误'}`);
+                console.log('💾 已回退到本地存储');
+            }
+        } else {
+            // Offline mode
+            saveToLocal(this.saveData);
+            console.log('💾 已保存到本地存储 (离线模式)');
         }
     }
 
     async doLoad() {
-        // Try server load first
-        const result = await loadFromServer();
-        if (result.success && result.saveData) {
-            this.saveData = result.saveData;
-            this.deserialize();
-            this.serverAvailable = true;
-            console.log(`☁️ ${result.message}`);
-            window.dispatchEvent(new CustomEvent('game:loaded'));
+        if (isOnline()) {
+            if (!isLoggedIn()) {
+                console.warn('⚠️ 在线模式需要先登录');
+                // Fallback to local
+                const localSave = loadFromLocal();
+                if (localSave) {
+                    this.saveData = localSave;
+                    this.deserialize();
+                    console.log('💾 已从本地存储加载');
+                    window.dispatchEvent(new CustomEvent('game:loaded'));
+                }
+                return;
+            }
+
+            const result = await loadFromServer();
+            if (result.success && result.saveData) {
+                this.saveData = result.saveData;
+                this.deserialize();
+                this.serverAvailable = true;
+                console.log(`☁️ ${result.message} (${getUsername()})`);
+                window.dispatchEvent(new CustomEvent('game:loaded'));
+                return;
+            }
+
+            // Server has no save or error
+            if (result.status === 404) {
+                console.warn('⚠️ 服务器上没有存档数据');
+            } else {
+                console.warn(`⚠️ 服务器加载失败: ${result.error || '未知错误'}`);
+            }
+
+            // Try local as fallback
+            const localSave = loadFromLocal();
+            if (localSave) {
+                this.saveData = localSave;
+                this.deserialize();
+                console.log('💾 已从本地存储加载 (回退)');
+                window.dispatchEvent(new CustomEvent('game:loaded'));
+                return;
+            }
+
+            console.warn('没有找到任何存档');
             return;
         }
 
-        // Fallback: check in-memory saveData
-        if (this.saveData) {
-            this.deserialize();
-            console.log('💾 已从内存加载存档');
-            window.dispatchEvent(new CustomEvent('game:loaded'));
-            return;
-        }
-
-        // Fallback: check localStorage
-        const localSave = localStorage.getItem('rictworld_save');
+        // Offline mode
+        const localSave = loadFromLocal();
         if (localSave) {
             this.saveData = localSave;
             this.deserialize();
-            if (result.fallback) this.serverAvailable = false;
-            console.log('💾 已从本地存储加载存档');
+            console.log('💾 已从本地存储加载 (离线模式)');
             window.dispatchEvent(new CustomEvent('game:loaded'));
-            return;
+        } else {
+            console.warn('本地没有存档数据');
         }
-
-        console.warn('没有找到存档数据');
     }
 
     serialize() {
@@ -88,7 +124,7 @@ export class SaveEntity extends BaseEntity {
     }
 
     hasSaveData() {
-        return this.saveData !== null;
+        return this.saveData !== null || hasLocalSave();
     }
 
     clearSaveData() {
