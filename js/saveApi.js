@@ -3,9 +3,16 @@
  * Manages authentication, save/load, and offline/online mode.
  */
 
-const API_BASE = typeof BACKEND_URL !== 'undefined'
-  ? BACKEND_URL
-  : (window.BACKEND_URL || 'http://localhost:10021');
+function resolveApiBase() {
+  if (typeof window !== 'undefined' && window.BACKEND_URL) {
+    return window.BACKEND_URL;
+  }
+  if (typeof BACKEND_URL !== 'undefined') {
+    return BACKEND_URL;
+  }
+  return 'http://localhost:10021';
+}
+const API_BASE = resolveApiBase();
 
 const STORAGE_KEYS = {
   token: 'rictworld_token',
@@ -13,8 +20,6 @@ const STORAGE_KEYS = {
   mode: 'rictworld_mode',
   save: 'rictworld_save',
 };
-
-// ── Mode ─────────────────────────────────────────────────────────────────
 
 export const Mode = {
   OFFLINE: 'offline',
@@ -32,8 +37,6 @@ export function setMode(mode) {
 export function isOnline() {
   return getMode() === Mode.ONLINE;
 }
-
-// ── Token management ─────────────────────────────────────────────────────
 
 export function getToken() {
   return localStorage.getItem(STORAGE_KEYS.token);
@@ -68,8 +71,6 @@ export function logout() {
   setUsername(null);
 }
 
-// ── API helpers ──────────────────────────────────────────────────────────
-
 async function api(method, path, body = null) {
   const headers = { 'Content-Type': 'application/json' };
   const token = getToken();
@@ -82,8 +83,6 @@ async function api(method, path, body = null) {
   const json = await resp.json();
   return { ok: resp.ok, status: resp.status, ...json };
 }
-
-// ── Auth endpoints ───────────────────────────────────────────────────────
 
 export async function register(username, password) {
   return api('POST', '/api/auth/register', { username, password });
@@ -102,11 +101,8 @@ export async function fetchCurrentUser() {
   return api('GET', '/api/auth/me');
 }
 
-// ── Save/Load ────────────────────────────────────────────────────────────
-
 export async function saveToServer(saveData) {
-  const result = await api('POST', '/api/save', { saveData });
-  return result;
+  return api('POST', '/api/save', { saveData });
 }
 
 export async function loadFromServer() {
@@ -123,8 +119,6 @@ export async function checkServerHealth() {
   }
 }
 
-// ── Offline (localStorage) save/load ─────────────────────────────────────
-
 export function saveToLocal(saveData) {
   localStorage.setItem(STORAGE_KEYS.save, saveData);
 }
@@ -136,3 +130,5 @@ export function loadFromLocal() {
 export function hasLocalSave() {
   return !!localStorage.getItem(STORAGE_KEYS.save);
 }
+
+export { API_BASE };
