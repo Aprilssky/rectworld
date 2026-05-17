@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RictWorld</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 800px;
+            color: #e0e0e0;
+            padding: 0 4px;
+        }
+
+        .game-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+        }
+
+        .game-controls {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .game-controls span {
+            margin-left: 12px;
+            background: rgba(255,255,255,0.06);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        #gameCanvas {
+            background: #2d2d44;
+            border-radius: 8px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .game-footer {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .touch-controls {
+            display: none;
+            gap: 10px;
+            justify-content: center;
+            padding: 4px 0 8px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .touch-btn {
+            min-width: 56px;
+            height: 44px;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.08);
+            color: #e0e0e0;
+            font-size: 13px;
+            font-weight: bold;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            padding: 0 10px;
+        }
+
+        .touch-btn:active {
+            background: rgba(255,215,0,0.2);
+            border-color: rgba(255,215,0,0.4);
+        }
+
+        .touch-btn .key-hint {
+            font-size: 10px;
+            opacity: 0.5;
+            margin-left: 2px;
+        }
+
+        @media (max-width: 820px) {
+            .game-header, .game-footer {
+                width: 100%;
+                padding: 0 10px;
+            }
+            #gameCanvas {
+                width: 100vw;
+                height: 75vw;
+                max-height: 100vh;
+                border-radius: 0;
+            }
+            .game-controls span {
+                display: none;
+            }
+            .touch-controls {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-wrapper">
+        <div class="game-header">
+            <span class="game-title">✦ RictWorld</span>
+            <div class="game-controls">
+                <span>↑↓←→ 移动</span>
+                <span>空格 交互</span>
+                <span>B 背包</span>
+                <span>E 动作</span>
+                <span>G 跳转</span>
+                <span>Q 丢弃</span>
+            </div>
+        </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="touch-controls">
+            <button class="touch-btn" data-key="E">动作<span class="key-hint">E</span></button>
+            <button class="touch-btn" data-key="B">背包<span class="key-hint">B</span></button>
+            <button class="touch-btn" data-key="Q">丢弃<span class="key-hint">Q</span></button>
+            <button class="touch-btn" data-key="Tab">切换<span class="key-hint">Tab</span></button>
+            <button class="touch-btn" data-key=" ">关闭<span class="key-hint">␣</span></button>
+        </div>
+        <div class="game-footer">
+            <span>Web 版本 · 修复版</span>
+            <span id="fpsDisplay">FPS: 0</span>
+        </div>
+    </div>
+
+    <!-- 配置: 后端 cpolar 地址 -->
+    <script src="config.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
