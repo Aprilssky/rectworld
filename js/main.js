@@ -13,6 +13,7 @@ import { StoneEntity } from './entities/StoneEntity.js';
 import { FarmlandEntity } from './entities/FarmlandEntity.js';
 import { DayNightSystem } from './systems/DayNightSystem.js';
 import { AudioSystem } from './systems/AudioSystem.js';
+import { initAuth, authState } from './auth.js';
 
 /* ============================================================
    Setup
@@ -628,3 +629,6 @@ function gameLoop(timestamp) {
 }
 
 requestAnimationFrame(gameLoop);
+
+// Initialize auth module (login/modal + mode toggle)
+initAuth();
