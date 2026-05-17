@@ -523,6 +523,10 @@ function quickPickup() {
 }
 
 window.addEventListener('keydown', (e) => {
+    // Skip if auth modal is open or an input field is focused
+    const tag = document.activeElement ? document.activeElement.tagName : null;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (document.getElementById('authOverlay').classList.contains('show')) return;
     const controlKeys = [
         'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
         ' ', 'Space', 'b', 'B', 'w', 'W', 'a', 'A', 's', 'S', 'd', 'D',
