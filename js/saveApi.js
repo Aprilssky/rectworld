@@ -1,75 +1,138 @@
 /**
  * RictWorld Backend API Client
- * Communicates with the Python Flask server running locally behind cpolar.
- * Handles save/load game state via HTTP requests.
+ * Manages authentication, save/load, and offline/online mode.
  */
 
-// If config.js is loaded, BACKEND_URL will already be defined
 const API_BASE = typeof BACKEND_URL !== 'undefined'
   ? BACKEND_URL
   : (window.BACKEND_URL || 'http://localhost:10021');
 
-const API_ENDPOINTS = {
-  save:   `${API_BASE}/api/save`,
-  load:   `${API_BASE}/api/load`,
-  health: `${API_BASE}/api/health`,
+const STORAGE_KEYS = {
+  token: 'rictworld_token',
+  username: 'rictworld_username',
+  mode: 'rictworld_mode',
+  save: 'rictworld_save',
 };
 
-/**
- * Save game state to the backend server.
- * @param {string} saveData - JSON-serialized game state from Grid.serialize()
- * @returns {Promise<{success: boolean, message: string}>}
- */
+// ── Mode ─────────────────────────────────────────────────────────────────
+
+export const Mode = {
+  OFFLINE: 'offline',
+  ONLINE: 'online',
+};
+
+export function getMode() {
+  return localStorage.getItem(STORAGE_KEYS.mode) || Mode.OFFLINE;
+}
+
+export function setMode(mode) {
+  localStorage.setItem(STORAGE_KEYS.mode, mode);
+}
+
+export function isOnline() {
+  return getMode() === Mode.ONLINE;
+}
+
+// ── Token management ─────────────────────────────────────────────────────
+
+export function getToken() {
+  return localStorage.getItem(STORAGE_KEYS.token);
+}
+
+export function setToken(token) {
+  if (token) {
+    localStorage.setItem(STORAGE_KEYS.token, token);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.token);
+  }
+}
+
+export function getUsername() {
+  return localStorage.getItem(STORAGE_KEYS.username);
+}
+
+export function setUsername(name) {
+  if (name) {
+    localStorage.setItem(STORAGE_KEYS.username, name);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.username);
+  }
+}
+
+export function isLoggedIn() {
+  return !!getToken();
+}
+
+export function logout() {
+  setToken(null);
+  setUsername(null);
+}
+
+// ── API helpers ──────────────────────────────────────────────────────────
+
+async function api(method, path, body = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(`${API_BASE}${path}`, opts);
+  const json = await resp.json();
+  return { ok: resp.ok, status: resp.status, ...json };
+}
+
+// ── Auth endpoints ───────────────────────────────────────────────────────
+
+export async function register(username, password) {
+  return api('POST', '/api/auth/register', { username, password });
+}
+
+export async function login(username, password) {
+  const result = await api('POST', '/api/auth/login', { username, password });
+  if (result.success && result.token) {
+    setToken(result.token);
+    setUsername(result.username);
+  }
+  return result;
+}
+
+export async function fetchCurrentUser() {
+  return api('GET', '/api/auth/me');
+}
+
+// ── Save/Load ────────────────────────────────────────────────────────────
+
 export async function saveToServer(saveData) {
-  try {
-    const resp = await fetch(API_ENDPOINTS.save, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ saveData }),
-    });
-    if (!resp.ok) {
-      const err = await resp.text();
-      return { success: false, message: `服务器错误 (${resp.status}): ${err}` };
-    }
-    const json = await resp.json();
-    return { success: true, message: json.message || '存档已保存到服务器' };
-  } catch (err) {
-    console.warn('保存到服务器失败，回退到本地存储。错误:', err.message);
-    return { success: false, message: `网络错误: ${err.message}`, fallback: true };
-  }
+  const result = await api('POST', '/api/save', { saveData });
+  return result;
 }
 
-/**
- * Load game state from the backend server.
- * @returns {Promise<{success: boolean, saveData?: string, message: string}>}
- */
 export async function loadFromServer() {
-  try {
-    const resp = await fetch(API_ENDPOINTS.load);
-    if (resp.status === 404) {
-      return { success: false, message: '服务器上没有存档数据' };
-    }
-    if (!resp.ok) {
-      const err = await resp.text();
-      return { success: false, message: `服务器错误 (${resp.status}): ${err}` };
-    }
-    const json = await resp.json();
-    return { success: true, saveData: json.saveData, message: '存档已从服务器加载' };
-  } catch (err) {
-    console.warn('从服务器加载失败，回退到本地存储。错误:', err.message);
-    return { success: false, message: `网络错误: ${err.message}`, fallback: true };
-  }
+  return api('GET', '/api/load');
 }
 
-/**
- * Check if the backend server is reachable.
- * @returns {Promise<boolean>}
- */
 export async function checkServerHealth() {
   try {
-    const resp = await fetch(API_ENDPOINTS.health, { signal: AbortSignal.timeout(3000) });
-    return resp.ok;
+    const resp = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
+    const json = await resp.json();
+    return { alive: resp.ok, version: json.version };
   } catch {
-    return false;
+    return { alive: false, version: null };
   }
+}
+
+// ── Offline (localStorage) save/load ─────────────────────────────────────
+
+export function saveToLocal(saveData) {
+  localStorage.setItem(STORAGE_KEYS.save, saveData);
+}
+
+export function loadFromLocal() {
+  return localStorage.getItem(STORAGE_KEYS.save);
+}
+
+export function hasLocalSave() {
+  return !!localStorage.getItem(STORAGE_KEYS.save);
 }
