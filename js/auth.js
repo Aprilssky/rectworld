@@ -8,16 +8,12 @@ import {
   register, login, fetchCurrentUser, checkServerHealth,
 } from './saveApi.js';
 
-// ── Shared state ─────────────────────────────────────────────────────────
-
 export const authState = {
-  mode: getMode(),    // 'online' | 'offline'
+  mode: getMode(),
   loggedIn: isLoggedIn(),
   username: getUsername(),
   serverAlive: false,
 };
-
-// ── DOM refs ─────────────────────────────────────────────────────────────
 
 let els = {};
 
@@ -45,18 +41,14 @@ function initDOM() {
   };
 }
 
-// ── UI update ────────────────────────────────────────────────────────────
-
 function updateUI() {
   const online = authState.mode === 'online';
   const loggedIn = authState.loggedIn;
 
-  // Mode buttons
   els.modeBtns.forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mode === authState.mode);
   });
 
-  // User badge
   if (loggedIn) {
     els.userBtn.textContent = `👤 ${authState.username}`;
     els.userBtn.className = 'user-badge logged-in';
@@ -68,7 +60,6 @@ function updateUI() {
     els.userBtn.className = 'user-badge';
   }
 
-  // Status
   if (!online) {
     els.statusMsg.innerHTML = '• <span class="status-offline">离线模式</span>';
   } else if (!authState.serverAlive) {
@@ -80,29 +71,32 @@ function updateUI() {
   }
 }
 
-// ── Mode switching ───────────────────────────────────────────────────────
-
 async function switchMode(mode) {
   authState.mode = mode;
   setMode(mode);
 
   if (mode === 'online') {
-    // Check server health
     const health = await checkServerHealth();
     authState.serverAlive = health.alive;
     if (!health.alive) {
       console.warn('⚠️ 无法连接到后端服务器');
     }
+    if (health.alive && authState.loggedIn) {
+      // Verify token
+      const me = await fetchCurrentUser();
+      if (!me.success) {
+        logout();
+        authState.loggedIn = false;
+        authState.username = null;
+      }
+    }
   } else {
-    // Switch to offline - clear online state but keep token for potential later use
     console.log('📴 切换到离线模式');
   }
 
   updateUI();
   window.dispatchEvent(new CustomEvent('rictworld:modeChange', { detail: { mode } }));
 }
-
-// ── Auth modal ───────────────────────────────────────────────────────────
 
 function showAuth() { els.authOverlay.classList.add('show'); }
 function hideAuth() { els.authOverlay.classList.remove('show'); }
@@ -187,30 +181,23 @@ function handleLogout() {
   console.log('👋 已退出登录');
 }
 
-// ── Initial check ────────────────────────────────────────────────────────
-
 async function checkLoginOnStart() {
   if (authState.mode !== 'online' || !authState.loggedIn) {
     updateUI();
     return;
   }
-  // Verify existing token is still valid
   const health = await checkServerHealth();
   authState.serverAlive = health.alive;
   if (health.alive) {
     const me = await fetchCurrentUser();
     if (!me.success) {
-      // Token expired
       logout();
       authState.loggedIn = false;
       authState.username = null;
-      console.warn('⚠️ 登录已过期，请重新登录');
     }
   }
   updateUI();
 }
-
-// ── Init ─────────────────────────────────────────────────────────────────
 
 export function initAuth() {
   initDOM();
@@ -220,35 +207,34 @@ export function initAuth() {
     btn.addEventListener('click', () => switchMode(btn.dataset.mode));
   });
 
-  // User button
+  // User button: always clickable, gives hint if offline
   els.userBtn.addEventListener('click', () => {
     if (authState.loggedIn) {
       if (confirm('退出登录？')) handleLogout();
     } else if (authState.mode === 'online') {
       showAuth();
+    } else {
+      // Switch to online mode automatically and show auth
+      els.statusMsg.innerHTML = '• <span style="color:#ff9800">切换到在线模式...</span>';
+      switchMode('online').then(() => {
+        showAuth();
+      });
     }
   });
 
-  // Auth tabs
   els.authTabs.forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 
-  // Login
   els.loginBtn.addEventListener('click', handleLogin);
   els.loginPass.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
 
-  // Register
   els.regBtn.addEventListener('click', handleRegister);
   els.regPass2.addEventListener('keydown', e => { if (e.key === 'Enter') handleRegister(); });
 
-  // Close
   els.authClose.addEventListener('click', hideAuth);
   els.authOverlay.addEventListener('click', e => { if (e.target === els.authOverlay) hideAuth(); });
 
-  // Initial state
   updateUI();
-
-  // Check server health and login validity
   checkLoginOnStart();
 }
